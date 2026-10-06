@@ -1,102 +1,86 @@
-# Lumastra — LGPL Corresponding Source
+# Lumastra — LGPL Corresponding Source and relink kits
 
-This repository exists to satisfy the LGPL for **Lumastra for Apple TV**, which
-statically links [MPVKit](https://github.com/mpvkit/MPVKit) (libmpv + FFmpeg).
+This repository provides the LGPL materials for **Lumastra for Apple TV**
+(tvOS). The app statically links libmpv, FFmpeg and other libraries built from
+MPVKit recipes. The libraries under the LGPL are distributed under **LGPL
+version 3**: where a library is "LGPL-2.1-or-later", the later-version option is
+used. The Lumastra **iOS** app links no LGPL component and is not covered here.
 
-If you received the app and want to modify the LGPL libraries inside it and run
-your modified version, everything you need is here or linked from here.
+## Where the materials are: one GitHub Release per distributed build
 
-> The Lumastra **iOS** app links no LGPL component and is not covered by this
-> repository. Only the tvOS app is.
+Each distributed Apple TV build has its own Release, tagged
+`tvos-<version>-<build>`, for example `tvos-1.0.1-2610061531`. **Settings → Licenses** in the app links
+directly to the Release for the build you have installed. Each Release contains:
 
----
-
-## What is here
-
-| Path | What it is |
+| Asset | What it is |
 |---|---|
-| `mpvkit-0.41.0/` | **MPVKit at tag `0.41.0`, vendored verbatim** — build scripts and the patches it applies to upstream |
-| `scripts/fetch-upstream-sources.sh` | Fetches the pinned mpv and FFmpeg sources |
-| `MANIFEST.md` | Exact versions, commits and checksums of everything linked |
-| `Legal/` | LGPL-2.1, LGPL-3.0 and GPL-3.0 licence texts |
+| `corresponding-source-<build>.tar.gz` | Complete Corresponding Source for every library linked into that build: pinned upstream source trees, every patch applied, build recipes and scripts, generated configuration headers, notices, and `source-manifest.json` with the checksum of every file and the linked-binary hashes it corresponds to |
+| `relink-kit-<build>.tar.gz` | The application's object code and resources for that build (no application source), the exact non-SDK libraries linked, the captured final link commands for the app and its Top Shelf extension, and `relink.py` / `sign.py` |
+| `SHA256SUMS` | SHA-256 of both archives |
 
-**MPVKit is vendored rather than merely linked on purpose.** MPVKit patches mpv
-and FFmpeg during its build, so vanilla upstream tarballs are *not* the
-Corresponding Source on their own — the patches are part of what was built.
-Upstream tags can also move or disappear; this copy cannot.
+Use only the Release whose build number matches your app. A kit from one build
+cannot be applied to another build, and the tools refuse to.
 
-## What is not here, and why
+The files at the root of this repository are **not** Corresponding Source for any
+current build. The authoritative material is the Release assets.
 
-This repository does **not** contain Lumastra's own source code, and is not
-required to. LGPL-3.0 §0 defines the Corresponding Application Code as
+## Relinking
 
-> "the **object code and/or source code** for the Application"
+Requirements: a Mac with the Xcode and tvOS SDK versions recorded in the kit's
+`manifest.json`, and Python 3.
 
-The *and/or* is the point: object code satisfies it. That is exactly the
-difference between the LGPL and the GPL, and it is why Lumastra can link libmpv
-while remaining a proprietary application.
-
-The application's **object code** — everything needed to relink it — is
-published as a **relink kit**, attached to this repository's Releases for every
-Apple TV build that is distributed.
-
----
-
-## Relinking Lumastra with your own libmpv
-
-1. **Get the library source**
+1. Download and verify both archives (`shasum -a 256 -c SHA256SUMS`), then unpack.
+2. Modify and rebuild a library from `corresponding-source-<build>`. See its
+   `README.md` and `scripts/build-lgpl-libraries.sh`. The shipped configuration
+   is LGPL: GPL and nonfree are disabled.
+3. Relink:
 
    ```bash
-   ./scripts/fetch-upstream-sources.sh
+   cd relink-kit
+   python3 relink.py relink --output '/tmp/my relinked app'
+   python3 relink.py relink --output '/tmp/my modified app' \
+     --library Libmpv --replacement /absolute/path/to/modified/Libmpv
    ```
 
-   This downloads mpv `v0.41.0` and FFmpeg `n8.0.1` and verifies them against
-   `MANIFEST.md`. Combined with `mpvkit-0.41.0/`, that is the complete
-   Corresponding Source for the libraries in the shipped app.
+   Every kit input is checked against its manifest before linking.
+   `verification.json` records the resulting executable and replacement checksums.
+4. Sign and install with **your own** Apple identity and provisioning profiles:
+   `python3 sign.py --help`. You can set your own bundle identifiers and app group
+   (`--bundle-id`, `--extension-bundle-id`, `--app-group`). The app and its Top
+   Shelf extension need profiles that cover a shared app group. Not every Apple ID
+   or account type may offer that capability. Install with Xcode or
+   `xcrun devicectl device install app --device <DEVICE> <path to .app>`.
 
-2. **Make your changes and rebuild the frameworks**
+The kit's own `README.md` is the reference for each build.
 
-   ```bash
-   cd mpvkit-0.41.0
-   make build platform=tvos
-   ```
-
-   This produces `.xcframework` bundles. Note the shipped build is the **LGPL**
-   configuration — do not pass `enable-gpl` if you want to match it.
-
-3. **Download the relink kit** for the app version you have, from this
-   repository's Releases. It contains the application's object code, the exact
-   link command used to produce the shipped binary, and the unmodified
-   frameworks for comparison.
-
-4. **Relink** — replace the matching framework with yours and re-run the link
-   command from the kit against the supplied object code.
-
-5. **Sign and install.** Sign with your own certificate and install to your own
-   Apple TV through Xcode. **A free Apple ID is sufficient** for installing to a
-   device you own; you do not need a paid developer account.
-
-Full step-by-step instructions ship inside each relink kit's own `README.md`,
-generated against the specific build it belongs to.
-
----
+**Installation Information (LGPLv3 §4(e)):** this applies only where GPLv3 §6
+would, that is, when the app is conveyed together with a transfer of the device.
+Lumastra is distributed separately from the Apple TV, so we do not consider it
+triggered. The installation procedure above is documented anyway. It needs no keys
+from us. Apple's own limits still apply: provisioning-profile lifetimes, and App
+Group availability on your account type.
 
 ## Your rights
 
-The LGPL grants you the right to modify the covered libraries and to run a
-Lumastra relinked against your modified versions, for any purpose. It also
-requires that you be permitted to reverse engineer the application as far as
-needed to debug those modifications. We don't restrict that for the LGPL
-components, whatever the platform's standard licence terms say.
+You may modify the LGPL-covered libraries, relink Lumastra against your modified
+versions, and run the result. The application object-code permission, in
+`Legal/APPLICATION-OBJECT-CODE-PERMISSION.txt` inside each kit and in the app
+under Settings → Licenses, also lets you reverse engineer the application as far
+as needed to debug those modifications. This applies whatever the platform's
+standard licence terms say.
+
+## Builds before the first Release
+
+Test builds before the first Release used upstream MPVKit binaries. They were only
+ever installed by the developer, and they are being withdrawn from TestFlight. No
+Release here covers them.
 
 ## Requests
 
-If anything here is incomplete, unclear, or a link has rotted, please open an
-issue on this repository. A compliance gap is a bug, and will be treated as one.
+If anything is incomplete, unclear, or a link has rotted, please open an issue. A
+compliance gap is a bug and will be treated as one.
 
 ## Licences
 
-Covered components are under the GNU Lesser General Public License. Full texts
-of LGPL-2.1, LGPL-3.0 and GPL-3.0 (which the LGPL incorporates by reference) are
-in `Legal/`, and are also reproduced in full inside the app under
-**Settings → Licenses**.
+The full licence texts for every component are inside each archive and are
+reproduced in the app under **Settings → Licenses**.
